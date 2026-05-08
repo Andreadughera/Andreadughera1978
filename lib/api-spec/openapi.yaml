@@ -1,0 +1,520 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Crypto Trading Signal System API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: signals
+    description: Trading signal operations
+  - name: prices
+    description: Market price operations
+  - name: market
+    description: Market overview operations
+  - name: trades
+    description: Trade execution operations
+  - name: settings
+    description: Configuration and API key settings
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /signals:
+    get:
+      operationId: listSignals
+      tags: [signals]
+      summary: List trading signals
+      parameters:
+        - in: query
+          name: symbol
+          schema:
+            type: string
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum: [BUY, SELL, HOLD]
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: List of signals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Signal"
+
+  /signals/summary:
+    get:
+      operationId: getSignalsSummary
+      tags: [signals]
+      summary: Get signals summary
+      responses:
+        "200":
+          description: Signal summary stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SignalsSummary"
+
+  /signals/history:
+    get:
+      operationId: getSignalsHistory
+      tags: [signals]
+      summary: Get signal history
+      parameters:
+        - in: query
+          name: symbol
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Historical signals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Signal"
+
+  /prices:
+    get:
+      operationId: listPrices
+      tags: [prices]
+      summary: List current prices
+      responses:
+        "200":
+          description: Current prices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SymbolPrice"
+
+  /prices/{symbol}:
+    get:
+      operationId: getPriceHistory
+      tags: [prices]
+      summary: Get price history for a symbol
+      parameters:
+        - in: path
+          name: symbol
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: interval
+          schema:
+            type: string
+            default: 1h
+            enum: [1m, 5m, 15m, 1h, 4h, 1d]
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 100
+      responses:
+        "200":
+          description: OHLCV candles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Candle"
+
+  /market/overview:
+    get:
+      operationId: getMarketOverview
+      tags: [market]
+      summary: Get market overview
+      responses:
+        "200":
+          description: Market overview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketOverview"
+
+  /trades:
+    get:
+      operationId: listTrades
+      tags: [trades]
+      summary: List executed trades
+      parameters:
+        - in: query
+          name: symbol
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: List of trades
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Trade"
+
+  /trades/stats:
+    get:
+      operationId: getTradesStats
+      tags: [trades]
+      summary: Get trade statistics
+      responses:
+        "200":
+          description: Trade stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TradesStats"
+
+  /settings/exchange:
+    get:
+      operationId: getExchangeSettings
+      tags: [settings]
+      summary: Get Crypto.com Exchange API key status
+      responses:
+        "200":
+          description: Exchange settings status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExchangeSettings"
+    post:
+      operationId: saveExchangeSettings
+      tags: [settings]
+      summary: Save Crypto.com Exchange API keys and trade config
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveExchangeSettingsBody"
+      responses:
+        "200":
+          description: Settings saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExchangeSettings"
+
+  /settings/exchange/test:
+    post:
+      operationId: testExchangeConnection
+      tags: [settings]
+      summary: Test Crypto.com Exchange API connection
+      responses:
+        "200":
+          description: Connection test result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectionTestResult"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required: [status]
+
+    Signal:
+      type: object
+      properties:
+        id:
+          type: integer
+        symbol:
+          type: string
+        type:
+          type: string
+          enum: [BUY, SELL, HOLD]
+        price:
+          type: number
+          format: double
+        rsi:
+          type: number
+          format: double
+        maShort:
+          type: number
+          format: double
+        maLong:
+          type: number
+          format: double
+        confidence:
+          type: number
+          format: double
+        reason:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, symbol, type, price, rsi, maShort, maLong, confidence, reason, createdAt]
+
+    SignalsSummary:
+      type: object
+      properties:
+        total:
+          type: integer
+        buyCount:
+          type: integer
+        sellCount:
+          type: integer
+        holdCount:
+          type: integer
+        trackedSymbols:
+          type: integer
+        lastUpdated:
+          type: string
+          format: date-time
+      required: [total, buyCount, sellCount, holdCount, trackedSymbols, lastUpdated]
+
+    SymbolPrice:
+      type: object
+      properties:
+        symbol:
+          type: string
+        price:
+          type: number
+          format: double
+        priceChange:
+          type: number
+          format: double
+        priceChangePercent:
+          type: number
+          format: double
+        volume:
+          type: number
+          format: double
+        high:
+          type: number
+          format: double
+        low:
+          type: number
+          format: double
+        updatedAt:
+          type: string
+          format: date-time
+      required: [symbol, price, priceChange, priceChangePercent, volume, high, low, updatedAt]
+
+    Candle:
+      type: object
+      properties:
+        openTime:
+          type: integer
+          format: int64
+        open:
+          type: number
+          format: double
+        high:
+          type: number
+          format: double
+        low:
+          type: number
+          format: double
+        close:
+          type: number
+          format: double
+        volume:
+          type: number
+          format: double
+        closeTime:
+          type: integer
+          format: int64
+      required: [openTime, open, high, low, close, volume, closeTime]
+
+    MarketOverview:
+      type: object
+      properties:
+        topGainers:
+          type: array
+          items:
+            $ref: "#/components/schemas/SymbolPrice"
+        topLosers:
+          type: array
+          items:
+            $ref: "#/components/schemas/SymbolPrice"
+        volumeLeaders:
+          type: array
+          items:
+            $ref: "#/components/schemas/SymbolPrice"
+        totalSymbols:
+          type: integer
+        updatedAt:
+          type: string
+          format: date-time
+      required: [topGainers, topLosers, volumeLeaders, totalSymbols, updatedAt]
+
+    Trade:
+      type: object
+      properties:
+        id:
+          type: integer
+        symbol:
+          type: string
+        signalId:
+          type: integer
+          nullable: true
+        side:
+          type: string
+          enum: [BUY, SELL]
+        quantity:
+          type: number
+          format: double
+        entryPrice:
+          type: number
+          format: double
+        tpPrice:
+          type: number
+          format: double
+        slPrice:
+          type: number
+          format: double
+        exitPrice:
+          type: number
+          format: double
+          nullable: true
+        pnlUsd:
+          type: number
+          format: double
+          nullable: true
+        status:
+          type: string
+          enum: [PENDING, FILLED, CLOSED, FAILED, CANCELLED]
+        binanceOrderId:
+          type: string
+          nullable: true
+        confidence:
+          type: number
+          format: double
+        errorMessage:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        closedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [id, symbol, side, quantity, entryPrice, tpPrice, slPrice, status, confidence, createdAt]
+
+    TradesStats:
+      type: object
+      properties:
+        total:
+          type: integer
+        executed:
+          type: integer
+        filled:
+          type: integer
+        closed:
+          type: integer
+        failed:
+          type: integer
+        pending:
+          type: integer
+      required: [total, executed, filled, closed, failed, pending]
+
+    ExchangeSettings:
+      type: object
+      properties:
+        apiKeyConfigured:
+          type: boolean
+        secretKeyConfigured:
+          type: boolean
+        autoTradeEnabled:
+          type: boolean
+        minConfidence:
+          type: number
+          format: double
+        takeProfitPct:
+          type: number
+          format: double
+        stopLossPct:
+          type: number
+          format: double
+        source:
+          type: string
+          description: Where the keys come from (env or db)
+      required: [apiKeyConfigured, secretKeyConfigured, autoTradeEnabled, minConfidence, takeProfitPct, stopLossPct, source]
+
+    SaveExchangeSettingsBody:
+      type: object
+      properties:
+        apiKey:
+          type: string
+          nullable: true
+        secretKey:
+          type: string
+          nullable: true
+        autoTradeEnabled:
+          type: boolean
+        minConfidence:
+          type: number
+          format: double
+        takeProfitPct:
+          type: number
+          format: double
+        stopLossPct:
+          type: number
+          format: double
+      required: [autoTradeEnabled, minConfidence, takeProfitPct, stopLossPct]
+
+    ConnectionTestResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        accountType:
+          type: string
+          nullable: true
+        balances:
+          type: array
+          nullable: true
+          items:
+            type: object
+            properties:
+              asset:
+                type: string
+              free:
+                type: string
+              locked:
+                type: string
+            required: [asset, free, locked]
+      required: [success, message]
