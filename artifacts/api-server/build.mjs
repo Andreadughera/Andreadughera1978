@@ -8,6 +8,6 @@ await esbuild.build({
   format: "esm",
   target: "node22",
   sourcemap: true,
-  packages: "external",
+  external: ["pg-native"],
   logLevel: "info",
 });

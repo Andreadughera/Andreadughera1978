@@ -1,6 +1,8 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import fs from "node:fs";
+import path from "node:path";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
@@ -69,6 +71,15 @@ app.use("/api", (_req, res, next) => {
 app.use("/api", authRouter);
 app.use("/api", requireAuth);
 app.use("/api", router);
+
+const staticDir = (process.env.STATIC_DIR ?? "").trim();
+if (staticDir && fs.existsSync(path.join(staticDir, "index.html"))) {
+  app.use(express.static(staticDir, { index: false }));
+  app.get(/^\/(?!api\/?).*/, (_req, res) => {
+    res.sendFile(path.join(staticDir, "index.html"));
+  });
+  logger.info({ staticDir }, "Serving dashboard static files");
+}
 
 // ─── Signal refresh every 60s (with overlap guard) ───────────────────────────
 const SIGNAL_REFRESH_INTERVAL_MS = 60 * 1000;

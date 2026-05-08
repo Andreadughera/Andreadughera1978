@@ -1,0 +1,10 @@
+.git/
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+cryptosentinel*.tar.gz
+cryptosentinel*.zip
+*part_*.txt
