@@ -454,7 +454,7 @@ export default function Dashboard() {
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2"><TrendingUp className="h-4 w-4 text-success"/> Gainers</h3>
                   <div className="space-y-0 border border-success/20 rounded-md bg-success/5">
-                    {market?.topGainers.slice(0,3).map(p => (
+                    {market?.topGainers.slice(0,3).map((p: any) => (
                       <div key={p.symbol} className="flex justify-between items-center p-3 border-b border-success/10 last:border-0">
                         <span className="font-bold">{p.symbol.replace('USDT', '')}</span>
                         <span className="text-success font-mono">+{p.priceChangePercent.toFixed(2)}%</span>
@@ -465,7 +465,7 @@ export default function Dashboard() {
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2"><TrendingDown className="h-4 w-4 text-danger"/> Losers</h3>
                   <div className="space-y-0 border border-danger/20 rounded-md bg-danger/5">
-                    {market?.topLosers.slice(0,3).map(p => (
+                    {market?.topLosers.slice(0,3).map((p: any) => (
                       <div key={p.symbol} className="flex justify-between items-center p-3 border-b border-danger/10 last:border-0">
                         <span className="font-bold">{p.symbol.replace('USDT', '')}</span>
                         <span className="text-danger font-mono">{p.priceChangePercent.toFixed(2)}%</span>
