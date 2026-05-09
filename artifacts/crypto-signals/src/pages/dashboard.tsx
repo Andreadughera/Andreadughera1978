@@ -161,7 +161,7 @@ export default function Dashboard() {
           {regime && (
             <Badge variant="outline" className={`text-xs font-mono flex items-center gap-1 ${regimeColor}`}>
               <Layers className="h-3 w-3" />
-              {regime.regimeLabel.toUpperCase()} · ADX {regime.adx}
+              {(regime.regimeLabel ?? regime.regime ?? "UNKNOWN").toUpperCase()} · ADX {regime.adx ?? "--"}
             </Badge>
           )}
           {risk && risk.riskStatus !== "SAFE" && (

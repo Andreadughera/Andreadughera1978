@@ -258,7 +258,7 @@ export default function Portfolio() {
               </CardTitle>
               {regime && (
                 <Badge variant="outline" className={`text-xs font-mono ${regimeBadgeClass(regime.regime)}`}>
-                  {regime.regimeLabel.toUpperCase()}
+                  {(regime.regimeLabel ?? regime.regime ?? "UNKNOWN").toUpperCase()}
                 </Badge>
               )}
             </div>
