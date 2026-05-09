@@ -15,36 +15,35 @@ const client = axios.create({
 });
 
 export const TRACKED_SYMBOLS = [
-  // Large caps
-  "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT",
-  "ADAUSDT", "XRPUSDT", "DOTUSDT", "LINKUSDT",
-  // Extended — top 50 by market cap, liquid on CDC Exchange
-  "AVAXUSDT", "MATICUSDT", "UNIUSDT", "ATOMUSDT",
-  "LTCUSDT",  "NEARUSDT", "APTUSDT", "TRXUSDT",
-  "FTMUSDT",  "ALGOUSDT", "DOGEUSDT", "FILUSDT",
+  // Large/liquid spot pairs that are tradable on Crypto.com Exchange.
+  "BTCUSDT", "ETHUSDT", "SOLUSDT", "ADAUSDT",
+  "XRPUSDT", "DOTUSDT", "LINKUSDT", "AVAXUSDT",
+  "UNIUSDT", "ATOMUSDT", "LTCUSDT", "NEARUSDT",
+  "APTUSDT", "ALGOUSDT", "DOGEUSDT", "FILUSDT",
+  "POLUSDT", "BCHUSDT", "XLMUSDT", "CROUSDT",
 ];
 
 const MOCK_BASE_PRICES: Record<string, number> = {
   BTCUSDT:   62430,
   ETHUSDT:   3015,
-  BNBUSDT:   590,
   SOLUSDT:   147,
   ADAUSDT:   0.452,
   XRPUSDT:   0.512,
   DOTUSDT:   7.21,
   LINKUSDT:  14.82,
   AVAXUSDT:  35.0,
-  MATICUSDT: 0.50,
   UNIUSDT:   7.0,
   ATOMUSDT:  6.0,
   LTCUSDT:   90.0,
   NEARUSDT:  3.0,
   APTUSDT:   7.0,
-  TRXUSDT:   0.25,
-  FTMUSDT:   0.75,
   ALGOUSDT:  0.18,
   DOGEUSDT:  0.15,
   FILUSDT:   4.5,
+  POLUSDT:   0.38,
+  BCHUSDT:   450,
+  XLMUSDT:   0.12,
+  CROUSDT:   0.11,
 };
 
 export interface Ticker24h {

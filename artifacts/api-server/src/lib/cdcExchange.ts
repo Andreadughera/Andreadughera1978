@@ -18,7 +18,10 @@ const cdcClient = axios.create({
 });
 
 interface CdcInstrumentEntry {
-  instrument_name: string;
+  instrument_name?: string;
+  symbol?: string;
+  inst_type?: string;
+  tradable?: boolean;
 }
 
 interface CdcInstrumentsResponse {
@@ -116,15 +119,17 @@ const QTY_DECIMALS: Record<string, number> = {
   // _USDT pairs
   BTC_USDT:   4, ETH_USDT:  3, BNB_USDT:  2, SOL_USDT:  2,
   ADA_USDT:   0, XRP_USDT:  0, DOT_USDT:  1, LINK_USDT: 2,
-  AVAX_USDT:  2, MATIC_USDT:0, UNI_USDT:  2, ATOM_USDT: 2,
+  AVAX_USDT:  2, POL_USDT:  1, UNI_USDT:  2, ATOM_USDT: 2,
   LTC_USDT:   3, NEAR_USDT: 1, APT_USDT:  2, TRX_USDT:  0,
-  FTM_USDT:   0, ALGO_USDT: 0, DOGE_USDT: 0, FIL_USDT:  2,
+  BCH_USDT:   4, ALGO_USDT: 0, DOGE_USDT: 0, FIL_USDT:  2,
+  XLM_USDT:   0, CRO_USDT:  0,
   // _USD pairs (Crypto.com Exchange native USD)
   BTC_USD:    4, ETH_USD:   3, BNB_USD:   2, SOL_USD:   2,
   ADA_USD:    0, XRP_USD:   0, DOT_USD:   1, LINK_USD:  2,
-  AVAX_USD:   2, MATIC_USD: 0, UNI_USD:   2, ATOM_USD:  2,
+  AVAX_USD:   2, POL_USD:   1, UNI_USD:   2, ATOM_USD:  2,
   LTC_USD:    3, NEAR_USD:  1, APT_USD:   2, TRX_USD:   0,
-  FTM_USD:    0, ALGO_USD:  0, DOGE_USD:  0, FIL_USD:   2,
+  BCH_USD:    4, ALGO_USD:  0, DOGE_USD:  0, FIL_USD:   2,
+  XLM_USD:    0, CRO_USD:   0,
 };
 
 function formatQty(instrument: string, qty: number): string {
@@ -139,15 +144,17 @@ const PRICE_DECIMALS: Record<string, number> = {
   // _USDT
   BTC_USDT: 2, ETH_USDT: 2, BNB_USDT: 2, SOL_USDT: 2,
   ADA_USDT: 4, XRP_USDT: 4, DOT_USDT: 4, LINK_USDT: 4,
-  AVAX_USDT: 4, MATIC_USDT: 4, UNI_USDT: 4, ATOM_USDT: 4,
+  AVAX_USDT: 4, POL_USDT: 4, UNI_USDT: 4, ATOM_USDT: 4,
   LTC_USDT: 2, NEAR_USDT: 4, APT_USDT: 4, TRX_USDT: 4,
-  FTM_USDT: 4, ALGO_USDT: 4, DOGE_USDT: 4, FIL_USDT: 4,
+  BCH_USDT: 2, ALGO_USDT: 4, DOGE_USDT: 4, FIL_USDT: 4,
+  XLM_USDT: 5, CRO_USDT: 5,
   // _USD
   BTC_USD: 2,  ETH_USD: 2,  BNB_USD: 2,  SOL_USD: 2,
   ADA_USD: 4,  XRP_USD: 4,  DOT_USD: 4,  LINK_USD: 4,
-  AVAX_USD: 4, MATIC_USD: 4, UNI_USD: 4, ATOM_USD: 4,
+  AVAX_USD: 4, POL_USD: 4, UNI_USD: 4, ATOM_USD: 4,
   LTC_USD: 2,  NEAR_USD: 4, APT_USD: 4,  TRX_USD: 4,
-  FTM_USD: 4,  ALGO_USD: 4, DOGE_USD: 4, FIL_USD: 4,
+  BCH_USD: 2,  ALGO_USD: 4, DOGE_USD: 4, FIL_USD: 4,
+  XLM_USD: 5,  CRO_USD: 5,
 };
 
 function formatPrice(instrument: string, price: number): string {
@@ -166,7 +173,13 @@ async function getSupportedInstrumentNames(): Promise<Set<string>> {
   }
 
   const instruments = res.data.result?.instruments ?? res.data.result?.data ?? [];
-  const names = new Set(instruments.map((item) => item.instrument_name).filter(Boolean));
+  const names = new Set(
+    instruments
+      .filter((item) => !item.inst_type || item.inst_type === "CCY_PAIR")
+      .filter((item) => item.tradable !== false)
+      .map((item) => item.instrument_name ?? item.symbol)
+      .filter((name): name is string => !!name),
+  );
   instrumentCache = { names, at: Date.now() };
   logger.info({ count: names.size }, "CDC supported instruments loaded");
   return names;
