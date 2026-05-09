@@ -22,6 +22,10 @@ function isProduction(): boolean {
   return process.env.NODE_ENV === "production";
 }
 
+function useSecureCookie(): boolean {
+  return process.env.COOKIE_SECURE === "true";
+}
+
 function safeEqual(a: string, b: string): boolean {
   const left = Buffer.from(a);
   const right = Buffer.from(b);
@@ -135,7 +139,7 @@ authRouter.post("/auth/login", (req, res) => {
     httpOnly: true,
     maxAge: SESSION_MAX_AGE_MS,
     sameSite: "strict",
-    secure: isProduction(),
+    secure: useSecureCookie(),
   });
   res.json({ authenticated: true });
 });
@@ -144,7 +148,7 @@ authRouter.post("/auth/logout", (_req, res) => {
   res.clearCookie(COOKIE_NAME, {
     httpOnly: true,
     sameSite: "strict",
-    secure: isProduction(),
+    secure: useSecureCookie(),
   });
   res.json({ authenticated: false });
 });
