@@ -13,6 +13,7 @@ import { findHighlyCorrelatedPosition } from "../lib/correlation";
 import { getLastRegime } from "../lib/marketRegime";
 
 const router = Router();
+const DEFAULT_MAX_TRADE_NOTIONAL_USD = 10;
 
 // ─── Global trade semaphore ────────────────────────────────────────────────
 // Prevents race condition where 20 parallel signals all pass the balance check
@@ -39,6 +40,11 @@ function releaseTradeLock(): void {
   } else {
     _tradeLock = false;
   }
+}
+
+function getMaxTradeNotionalUsd(): number {
+  const raw = Number(process.env.MAX_TRADE_NOTIONAL_USD ?? DEFAULT_MAX_TRADE_NOTIONAL_USD);
+  return Number.isFinite(raw) && raw >= 1 ? raw : DEFAULT_MAX_TRADE_NOTIONAL_USD;
 }
 
 router.get("/signals", async (req, res) => {
@@ -222,7 +228,7 @@ async function tryAutoTrade(
       //  confidence ≥ 80% → 16% of balance (high conviction)
       //  confidence ≥ 70% → 12% of balance (standard entry)
       // Max = 30% of balance or $200, whichever is smaller (to avoid over-concentration)
-      const MAX_NOTIONAL = Math.min(200, bal.amount * 0.30);
+      const MAX_NOTIONAL = Math.min(getMaxTradeNotionalUsd(), bal.amount * 0.30);
       const balPct  = confidence >= 90 ? 0.22 : confidence >= 80 ? 0.16 : 0.12;
       const minSize = confidence >= 90 ? 15   : confidence >= 80 ? 12   : 10;
       tradeNotional = Math.min(MAX_NOTIONAL, Math.max(minSize, bal.amount * balPct));

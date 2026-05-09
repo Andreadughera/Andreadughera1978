@@ -11,7 +11,10 @@ const BINANCE_BASE = "https://api.binance.us/api/v3";
 const MIN_VOLUME_USD = 500_000;
 const LISTING_TP_PCT = 10;
 const LISTING_SL_PCT = 3;
-const LISTING_NOTIONAL = 10;
+const LISTING_NOTIONAL = Math.max(
+  1,
+  Math.min(10, Number(process.env.MAX_TRADE_NOTIONAL_USD ?? "10")),
+);
 
 let knownSymbols: Set<string> | null = null;
 let listingTradeRunning = false;
