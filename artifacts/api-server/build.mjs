@@ -2,10 +2,10 @@ import esbuild from "esbuild";
 
 await esbuild.build({
   entryPoints: ["src/index.ts"],
-  outfile: "dist/index.mjs",
+  outfile: "dist/index.cjs",
   bundle: true,
   platform: "node",
-  format: "esm",
+  format: "cjs",
   target: "node22",
   sourcemap: true,
   external: ["pg-native"],

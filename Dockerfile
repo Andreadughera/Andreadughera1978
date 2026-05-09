@@ -31,4 +31,4 @@ COPY --from=build /app/artifacts/crypto-signals/dist ./public
 USER appuser
 EXPOSE 8080
 
-CMD ["node", "--enable-source-maps", "dist/index.mjs"]
+CMD ["node", "--enable-source-maps", "dist/index.cjs"]
