@@ -17,6 +17,22 @@ const cdcClient = axios.create({
   httpsAgent: ipv4Agent,
 });
 
+interface CdcInstrumentEntry {
+  instrument_name: string;
+}
+
+interface CdcInstrumentsResponse {
+  code: number;
+  result?: {
+    instruments?: CdcInstrumentEntry[];
+    data?: CdcInstrumentEntry[];
+  };
+  message?: string;
+}
+
+let instrumentCache: { names: Set<string>; at: number } | null = null;
+const INSTRUMENT_CACHE_MS = 60 * 60 * 1000;
+
 export interface CdcCreds {
   apiKey: string;
   secretKey: string;
@@ -137,6 +153,32 @@ const PRICE_DECIMALS: Record<string, number> = {
 function formatPrice(instrument: string, price: number): string {
   const decimals = PRICE_DECIMALS[instrument] ?? 4;
   return price.toFixed(decimals);
+}
+
+async function getSupportedInstrumentNames(): Promise<Set<string>> {
+  if (instrumentCache && Date.now() - instrumentCache.at < INSTRUMENT_CACHE_MS) {
+    return instrumentCache.names;
+  }
+
+  const res = await cdcClient.get<CdcInstrumentsResponse>("/public/get-instruments");
+  if (res.data.code !== 0) {
+    throw new Error(`CDC instruments error ${res.data.code}: ${res.data.message ?? "Unknown error"}`);
+  }
+
+  const instruments = res.data.result?.instruments ?? res.data.result?.data ?? [];
+  const names = new Set(instruments.map((item) => item.instrument_name).filter(Boolean));
+  instrumentCache = { names, at: Date.now() };
+  logger.info({ count: names.size }, "CDC supported instruments loaded");
+  return names;
+}
+
+export async function isCdcInstrumentSupported(instrument: string): Promise<boolean> {
+  try {
+    return (await getSupportedInstrumentNames()).has(instrument);
+  } catch (err) {
+    logger.warn({ instrument, err: (err as Error).message }, "CDC instrument validation failed");
+    return false;
+  }
 }
 
 /** Convert Binance-style symbol (BTCUSDT) to CDC instrument name.
@@ -569,6 +611,9 @@ export async function closePosition(
     symbol,
     quoteOverride === "USDC" ? "USDT" : quoteOverride,
   );
+  if (!(await isCdcInstrumentSupported(instrument))) {
+    throw new Error(`Unsupported Crypto.com Exchange instrument: ${instrument}`);
+  }
   const qty = await getCryptoHolding(creds, symbol);
   if (qty <= 0) throw new Error(`No ${symbol.replace(/USDT?$/, "")} position to close`);
   const orderId = await placeMarketOrder(creds, instrument, "SELL", qty);
@@ -590,6 +635,9 @@ export async function executeCdcTrade(
     symbol,
     quoteOverride === "USDC" ? "USDT" : quoteOverride,
   );
+  if (!(await isCdcInstrumentSupported(instrument))) {
+    throw new Error(`Unsupported Crypto.com Exchange instrument: ${instrument}`);
+  }
 
   let rawQty: number;
   if (side === "SELL") {

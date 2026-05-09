@@ -2,7 +2,7 @@ import axios from "axios";
 import { db, tradesTable, newListingsTable } from "@workspace/db";
 import { and, eq, inArray } from "drizzle-orm";
 import { logger } from "./logger";
-import { getCdcCreds, executeCdcTrade, getStablecoinBalance } from "./cdcExchange";
+import { getCdcCreds, executeCdcTrade, getStablecoinBalance, isCdcInstrumentSupported, toCdcInstrument } from "./cdcExchange";
 import { getTradeConfig } from "./cdcExchange";
 import { canOpenNewPosition } from "./riskManager";
 import { findHighlyCorrelatedPosition } from "./correlation";
@@ -159,6 +159,11 @@ async function attemptListingTrade(symbol: string): Promise<void> {
     const bal = await getStablecoinBalance(creds);
     if (!bal || bal.amount < LISTING_NOTIONAL) {
       logger.warn({ symbol, balance: bal?.amount }, "Listing skipped: insufficient balance");
+      return;
+    }
+    const instrument = toCdcInstrument(symbol, bal.currency === "USDC" ? "USDT" : bal.currency);
+    if (!(await isCdcInstrumentSupported(instrument))) {
+      logger.info({ symbol, instrument }, "Listing skipped: unsupported Crypto.com Exchange instrument");
       return;
     }
 

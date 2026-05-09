@@ -6,7 +6,7 @@ import {
   GetSignalsHistoryQueryParams,
 } from "@workspace/api-zod";
 import { computeSignal, TRACKED_SYMBOLS } from "../lib/binance";
-import { getCdcCreds, getTradeConfig, executeCdcTrade, getStablecoinBalance, getCryptoHolding } from "../lib/cdcExchange";
+import { getCdcCreds, getTradeConfig, executeCdcTrade, getStablecoinBalance, getCryptoHolding, isCdcInstrumentSupported, toCdcInstrument } from "../lib/cdcExchange";
 import { logger } from "../lib/logger";
 import { canOpenNewPosition } from "../lib/riskManager";
 import { findHighlyCorrelatedPosition } from "../lib/correlation";
@@ -223,6 +223,12 @@ async function tryAutoTrade(
         return;
       }
       quoteCurrency = bal.currency;
+      const instrument = toCdcInstrument(symbol, quoteCurrency === "USDC" ? "USDT" : quoteCurrency);
+      if (!(await isCdcInstrumentSupported(instrument))) {
+        logger.warn({ symbol, instrument }, "BUY skipped: unsupported Crypto.com Exchange instrument");
+        _inFlightBuySymbols.delete(symbol);
+        return;
+      }
       // Dynamic position sizing based on confidence + balance (no hard cap):
       //  confidence ≥ 90% → 22% of balance (max conviction)
       //  confidence ≥ 80% → 16% of balance (high conviction)
