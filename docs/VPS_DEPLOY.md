@@ -57,6 +57,11 @@ SETTINGS_ENCRYPTION_KEY=<random secret>
 CORS_ORIGINS=
 
 LIVE_TRADING_ENABLED=false
+MAX_TRADE_NOTIONAL_USD=10
+MAX_NEW_TRADES_PER_SESSION=1
+STOP_AFTER_FIRST_FILL=true
+MAX_OPEN_POSITIONS=2
+MAX_TOTAL_EXPOSURE_USD=20
 ENABLE_LISTING_AUTO_TRADE=false
 ALLOW_MOCK_MARKET_DATA=false
 ```
@@ -112,6 +117,14 @@ With `LIVE_TRADING_ENABLED=false`:
 4. Confirm balances are shown.
 5. Confirm the bot generates signals and no real orders are placed.
 6. Keep listing auto-trade disabled.
+
+For controlled live tests, keep these capital-preservation brakes enabled:
+
+- `MAX_TRADE_NOTIONAL_USD=10` caps each order.
+- `MAX_NEW_TRADES_PER_SESSION=1` allows only one new filled BUY per app session.
+- `STOP_AFTER_FIRST_FILL=true` stops queued BUY attempts after the first filled BUY.
+- `MAX_OPEN_POSITIONS=2` blocks new BUYs once two positions are open.
+- `MAX_TOTAL_EXPOSURE_USD=20` blocks new BUYs above total open exposure.
 
 Only after this, edit `.env`:
 

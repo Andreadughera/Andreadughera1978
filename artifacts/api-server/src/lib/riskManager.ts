@@ -3,6 +3,21 @@ import { eq, and, sql, isNotNull } from "drizzle-orm";
 import { logger } from "./logger";
 
 const DAILY_DRAWDOWN_LIMIT = 0.05; // 5% of invested capital
+const DEFAULT_MAX_OPEN_POSITIONS = 2;
+const DEFAULT_MAX_TOTAL_EXPOSURE_USD = 20;
+
+function readPositiveNumber(key: string, fallback: number): number {
+  const raw = Number(process.env[key] ?? fallback);
+  return Number.isFinite(raw) && raw > 0 ? raw : fallback;
+}
+
+export function getMaxOpenPositions(): number {
+  return Math.floor(readPositiveNumber("MAX_OPEN_POSITIONS", DEFAULT_MAX_OPEN_POSITIONS));
+}
+
+export function getMaxTotalExposureUsd(): number {
+  return readPositiveNumber("MAX_TOTAL_EXPOSURE_USD", DEFAULT_MAX_TOTAL_EXPOSURE_USD);
+}
 
 /**
  * Compute today's realized PnL from closed trades.
@@ -98,7 +113,7 @@ export async function isDailyDrawdownBreached(): Promise<{
  */
 export async function checkPositionConcentration(
   symbol: string,
-  maxPositions = 10,
+  maxPositions = getMaxOpenPositions(),
 ): Promise<{ allowed: boolean; reason?: string; openCount: number }> {
   const { positions } = await getOpenExposure();
 
@@ -113,16 +128,37 @@ export async function checkPositionConcentration(
   return { allowed: true, openCount: positions };
 }
 
+export async function checkTotalExposure(
+  nextNotionalUsd = 0,
+): Promise<{ allowed: boolean; reason?: string; totalInvested: number; maxExposure: number }> {
+  const { totalInvested } = await getOpenExposure();
+  const maxExposure = getMaxTotalExposureUsd();
+  const projectedExposure = totalInvested + Math.max(0, nextNotionalUsd);
+
+  if (projectedExposure > maxExposure) {
+    return {
+      allowed: false,
+      reason: `Maximum total exposure reached ($${projectedExposure.toFixed(2)} projected / $${maxExposure.toFixed(2)} max)`,
+      totalInvested,
+      maxExposure,
+    };
+  }
+
+  return { allowed: true, totalInvested, maxExposure };
+}
+
 /**
  * Master risk gate — combines all checks.
  * Returns {allowed, reason} for whether a new BUY should proceed.
  */
 export async function canOpenNewPosition(
   symbol: string,
+  nextNotionalUsd = 0,
 ): Promise<{ allowed: boolean; reason?: string }> {
-  const [drawdown, concentration] = await Promise.all([
+  const [drawdown, concentration, exposure] = await Promise.all([
     isDailyDrawdownBreached(),
     checkPositionConcentration(symbol),
+    checkTotalExposure(nextNotionalUsd),
   ]);
 
   if (drawdown.breached) {
@@ -134,6 +170,10 @@ export async function canOpenNewPosition(
 
   if (!concentration.allowed) {
     return { allowed: false, reason: concentration.reason };
+  }
+
+  if (!exposure.allowed) {
+    return { allowed: false, reason: exposure.reason };
   }
 
   return { allowed: true };
@@ -168,7 +208,7 @@ export async function getRiskSummary(): Promise<{
     dailyDrawdownLimitPct: limitPct,
     dailyPnl: Math.round(pnl * 100) / 100,
     openPositions: positions,
-    maxPositions: 10,
+    maxPositions: getMaxOpenPositions(),
     investedCapital: Math.round(investedCapital * 100) / 100,
     riskStatus,
   };

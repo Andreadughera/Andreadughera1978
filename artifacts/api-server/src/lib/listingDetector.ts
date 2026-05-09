@@ -121,7 +121,7 @@ async function attemptListingTrade(symbol: string): Promise<void> {
       return;
     }
 
-    const riskCheck = await canOpenNewPosition(symbol);
+    const riskCheck = await canOpenNewPosition(symbol, LISTING_NOTIONAL);
     if (!riskCheck.allowed) {
       logger.warn({ symbol, reason: riskCheck.reason }, "Listing BUY blocked by risk manager");
       return;

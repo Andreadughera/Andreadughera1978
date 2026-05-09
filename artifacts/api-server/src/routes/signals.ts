@@ -14,6 +14,7 @@ import { getLastRegime } from "../lib/marketRegime";
 
 const router = Router();
 const DEFAULT_MAX_TRADE_NOTIONAL_USD = 10;
+const DEFAULT_MAX_NEW_TRADES_PER_SESSION = 1;
 
 // ─── Global trade semaphore ────────────────────────────────────────────────
 // Prevents race condition where 20 parallel signals all pass the balance check
@@ -21,6 +22,7 @@ const DEFAULT_MAX_TRADE_NOTIONAL_USD = 10;
 let _tradeLock = false;
 const _tradeQueue: Array<() => void> = [];
 const _inFlightBuySymbols = new Set<string>();
+let _sessionFilledBuyCount = 0;
 
 function acquireTradeLock(): Promise<void> {
   return new Promise((resolve) => {
@@ -45,6 +47,22 @@ function releaseTradeLock(): void {
 function getMaxTradeNotionalUsd(): number {
   const raw = Number(process.env.MAX_TRADE_NOTIONAL_USD ?? DEFAULT_MAX_TRADE_NOTIONAL_USD);
   return Number.isFinite(raw) && raw >= 1 ? raw : DEFAULT_MAX_TRADE_NOTIONAL_USD;
+}
+
+function getMaxNewTradesPerSession(): number {
+  const raw = Number(process.env.MAX_NEW_TRADES_PER_SESSION ?? DEFAULT_MAX_NEW_TRADES_PER_SESSION);
+  return Number.isFinite(raw) && raw >= 0 ? Math.floor(raw) : DEFAULT_MAX_NEW_TRADES_PER_SESSION;
+}
+
+function stopAfterFirstFill(): boolean {
+  return process.env.STOP_AFTER_FIRST_FILL !== "false";
+}
+
+function sessionTradeLimitReached(): boolean {
+  const maxNewTrades = stopAfterFirstFill()
+    ? Math.min(1, getMaxNewTradesPerSession())
+    : getMaxNewTradesPerSession();
+  return _sessionFilledBuyCount >= maxNewTrades;
 }
 
 router.get("/signals", async (req, res) => {
@@ -134,6 +152,14 @@ async function tryAutoTrade(
 
   // Prevent duplicate: skip BUY if we already hold an open position for this symbol
   if (type === "BUY") {
+    if (sessionTradeLimitReached()) {
+      logger.info(
+        { symbol, sessionFilledBuyCount: _sessionFilledBuyCount, maxNewTrades: getMaxNewTradesPerSession() },
+        "BUY skipped: session trade limit reached",
+      );
+      return;
+    }
+
     if (_inFlightBuySymbols.has(symbol)) {
       logger.info({ symbol }, "BUY skipped: trade already in progress for this symbol");
       return;
@@ -272,25 +298,54 @@ async function tryAutoTrade(
   await acquireTradeLock();
   logger.info({ symbol, type }, "Trade lock acquired — proceeding to execute");
 
-  // Insert trade record in PENDING state
-  const [trade] = await db
-    .insert(tradesTable)
-    .values({
-      symbol,
-      signalId,
-      side: type,
-      quantity: 0,
-      entryPrice: price,
-      tpPrice: 0,
-      slPrice: 0,
-      status: "PENDING",
-      confidence,
-    })
-    .returning();
+  if (type === "BUY") {
+    if (sessionTradeLimitReached()) {
+      logger.info(
+        { symbol, sessionFilledBuyCount: _sessionFilledBuyCount, maxNewTrades: getMaxNewTradesPerSession() },
+        "BUY skipped after lock: session trade limit reached",
+      );
+      releaseTradeLock();
+      _inFlightBuySymbols.delete(symbol);
+      return;
+    }
 
-  logger.info({ symbol, type, confidence }, "Auto-trade triggered on Crypto.com Exchange");
+    try {
+      const riskCheck = await canOpenNewPosition(symbol, tradeNotional);
+      if (!riskCheck.allowed) {
+        logger.warn({ symbol, reason: riskCheck.reason, tradeNotional }, "BUY blocked after lock by risk manager");
+        releaseTradeLock();
+        _inFlightBuySymbols.delete(symbol);
+        return;
+      }
+    } catch (err) {
+      logger.error({ symbol, err: (err as Error).message }, "BUY blocked: risk manager check failed after lock");
+      releaseTradeLock();
+      _inFlightBuySymbols.delete(symbol);
+      return;
+    }
+  }
 
+  let trade: typeof tradesTable.$inferSelect | null = null;
   try {
+    // Insert trade record in PENDING state only after all critical gates pass.
+    const [insertedTrade] = await db
+      .insert(tradesTable)
+      .values({
+        symbol,
+        signalId,
+        side: type,
+        quantity: 0,
+        entryPrice: price,
+        tpPrice: 0,
+        slPrice: 0,
+        status: "PENDING",
+        confidence,
+      })
+      .returning();
+    trade = insertedTrade;
+
+    logger.info({ symbol, type, confidence }, "Auto-trade triggered on Crypto.com Exchange");
+
     const result = await executeCdcTrade(
       creds,
       symbol,
@@ -315,6 +370,13 @@ async function tryAutoTrade(
       .where(eq(tradesTable.id, trade.id));
 
     logger.info({ symbol, orderId: result.orderId }, "Auto-trade filled on Crypto.com Exchange");
+    if (type === "BUY") {
+      _sessionFilledBuyCount += 1;
+      logger.warn(
+        { symbol, sessionFilledBuyCount: _sessionFilledBuyCount, maxNewTrades: getMaxNewTradesPerSession(), stopAfterFirstFill: stopAfterFirstFill() },
+        "Session trade counter incremented after filled BUY",
+      );
+    }
   } catch (err) {
     const raw = (err as Error).message ?? "Unknown error";
     // Map known exchange error codes to human-readable messages
@@ -329,10 +391,12 @@ async function tryAutoTrade(
       msg = "No position to sell — asset not held in account";
     }
     logger.error({ symbol, err: raw }, "Auto-trade failed");
-    await db
-      .update(tradesTable)
-      .set({ status: "FAILED", errorMessage: msg })
-      .where(eq(tradesTable.id, trade.id));
+    if (trade) {
+      await db
+        .update(tradesTable)
+        .set({ status: "FAILED", errorMessage: msg })
+        .where(eq(tradesTable.id, trade.id));
+    }
   } finally {
     releaseTradeLock();
     if (type === "BUY") _inFlightBuySymbols.delete(symbol);
