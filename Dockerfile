@@ -3,14 +3,14 @@
 FROM node:24-bookworm-slim AS build
 WORKDIR /app
 
-RUN corepack enable
+RUN corepack enable && corepack prepare pnpm@10.33.3 --activate
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json tsconfig.base.json ./
 COPY lib ./lib
 COPY artifacts ./artifacts
 COPY scripts ./scripts
 
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --no-frozen-lockfile
 RUN pnpm run build
 
 FROM node:24-bookworm-slim AS runtime
