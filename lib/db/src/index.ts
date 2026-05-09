@@ -4,6 +4,13 @@ import * as schema from "./schema";
 
 const { Pool } = pg;
 
+function getSslConfig(): false | { rejectUnauthorized: boolean } {
+  if (process.env.DATABASE_SSL !== "true") return false;
+  return {
+    rejectUnauthorized: process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== "false",
+  };
+}
+
 if (!process.env.DATABASE_URL) {
   throw new Error(
     "DATABASE_URL must be set. Did you forget to provision a database?",
@@ -12,7 +19,7 @@ if (!process.env.DATABASE_URL) {
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+  ssl: getSslConfig(),
   max: 5,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 30_000,

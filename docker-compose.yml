@@ -28,6 +28,7 @@ services:
       PORT: 8080
       STATIC_DIR: /app/public
       DATABASE_URL: postgres://cryptosentinel:${POSTGRES_PASSWORD}@db:5432/cryptosentinel
+      DATABASE_SSL: ${DATABASE_SSL:-false}
       DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:?set DASHBOARD_PASSWORD in .env}
       SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
       SETTINGS_ENCRYPTION_KEY: ${SETTINGS_ENCRYPTION_KEY:?set SETTINGS_ENCRYPTION_KEY in .env}
