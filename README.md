@@ -14,12 +14,26 @@ Documentazione operativa per portare DollarSpot Sentinel dalla versione attualme
 
 ### Stato repository
 
-Al momento nel repository non sono presenti i sorgenti completi:
+Nel repository e ora presente una base v5.2 di test:
+
+- `apps-script/DollarSpot_Sentinel_v5_2_TEST.gs`
+- `web/superintendent_v5_2_integration.js`
+
+Questi file coprono il livello di sicurezza/sincronizzazione:
+
+- token per campo;
+- validazione `doPost`;
+- salvataggio sicuro di registro, feltro, domande e configurazione;
+- supporto `rullatura`;
+- audit/errori;
+- blocco date future lato frontend.
+
+Non sono ancora presenti i sorgenti completi della versione oggi in uso:
 
 - `DollarSpot_Sentinel_v5_AGGIORNATO.gs`
 - pagina HTML superintendent
 
-Per procedere con modifiche implementative sicure, aggiungere i file sorgente in una struttura simile:
+Per procedere con l'integrazione completa, aggiungere i file sorgente in una struttura simile:
 
 ```text
 apps-script/
@@ -28,6 +42,7 @@ apps-script/
 web/
   superintendent_v9.html
   superintendent_v5_2_TEST.html
+  superintendent_v5_2_integration.js
 docs/
   dollarspot/
 ```
