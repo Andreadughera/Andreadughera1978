@@ -139,6 +139,10 @@ function formatQty(instrument: string, qty: number): string {
   return floored.toFixed(decimals);
 }
 
+export function getExecutableCdcQuantity(instrument: string, qty: number): number {
+  return parseFloat(formatQty(instrument, qty));
+}
+
 /** Price tick size (decimal places) per instrument for limit/TP/SL orders */
 const PRICE_DECIMALS: Record<string, number> = {
   // _USDT
@@ -588,13 +592,18 @@ async function placeMarketOrder(
   side: "BUY" | "SELL",
   quantity: number,
 ): Promise<string> {
+  const formattedQty = formatQty(instrument, quantity);
+  if (parseFloat(formattedQty) <= 0) {
+    throw new Error(`Order quantity too small for ${instrument}: ${quantity}`);
+  }
+
   const result = await privatePost<CreateOrderResult>(
     "private/create-order",
     {
       instrument_name: instrument,
       side,
       type: "MARKET",
-      quantity: formatQty(instrument, quantity),
+      quantity: formattedQty,
       client_oid: crypto.randomUUID(),
     },
     creds,
@@ -666,6 +675,9 @@ export async function executeCdcTrade(
   // Format to Exchange precision, then parse back for TP/SL math
   const qtyStr = formatQty(instrument, rawQty);
   const qty = parseFloat(qtyStr);
+  if (qty <= 0) {
+    throw new Error(`Order quantity too small for ${instrument}: raw=${rawQty}, formatted=${qtyStr}`);
+  }
 
   logger.info(
     { instrument, side, qty, price },

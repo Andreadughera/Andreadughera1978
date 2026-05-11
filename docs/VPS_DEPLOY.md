@@ -62,6 +62,7 @@ MAX_NEW_TRADES_PER_SESSION=1
 STOP_AFTER_FIRST_FILL=true
 MAX_OPEN_POSITIONS=2
 MAX_TOTAL_EXPOSURE_USD=20
+ENABLE_SIGNAL_AUTO_SELL=false
 ENABLE_LISTING_AUTO_TRADE=false
 ALLOW_MOCK_MARKET_DATA=false
 ```
@@ -125,6 +126,7 @@ For controlled live tests, keep these capital-preservation brakes enabled:
 - `STOP_AFTER_FIRST_FILL=true` stops queued BUY attempts after the first filled BUY.
 - `MAX_OPEN_POSITIONS=2` blocks new BUYs once two positions are open.
 - `MAX_TOTAL_EXPOSURE_USD=20` blocks new BUYs above total open exposure.
+- `ENABLE_SIGNAL_AUTO_SELL=false` keeps exits under the TP/SL position monitor instead of raw SELL signals.
 
 Only after this, edit `.env`:
 

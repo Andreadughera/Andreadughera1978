@@ -6,7 +6,7 @@ import {
   GetSignalsHistoryQueryParams,
 } from "@workspace/api-zod";
 import { computeSignal, TRACKED_SYMBOLS } from "../lib/binance";
-import { getCdcCreds, getTradeConfig, executeCdcTrade, getStablecoinBalance, getCryptoHolding, isCdcInstrumentSupported, toCdcInstrument } from "../lib/cdcExchange";
+import { getCdcCreds, getTradeConfig, executeCdcTrade, getStablecoinBalance, getCryptoHolding, isCdcInstrumentSupported, toCdcInstrument, getExecutableCdcQuantity, type StablecoinType } from "../lib/cdcExchange";
 import { logger } from "../lib/logger";
 import { canOpenNewPosition } from "../lib/riskManager";
 import { findHighlyCorrelatedPosition } from "../lib/correlation";
@@ -63,6 +63,10 @@ function sessionTradeLimitReached(): boolean {
     ? Math.min(1, getMaxNewTradesPerSession())
     : getMaxNewTradesPerSession();
   return _sessionFilledBuyCount >= maxNewTrades;
+}
+
+function signalAutoSellEnabled(): boolean {
+  return process.env.ENABLE_SIGNAL_AUTO_SELL === "true";
 }
 
 router.get("/signals", async (req, res) => {
@@ -149,6 +153,10 @@ async function tryAutoTrade(
   const config = await getTradeConfig();
   if (!config.autoTradeEnabled) return;
   if (confidence < config.minConfidence) return;
+  if (type === "SELL" && !signalAutoSellEnabled()) {
+    logger.info({ symbol, confidence }, "Auto-sell skipped: signal-driven SELL disabled; exits are managed by TP/SL monitor");
+    return;
+  }
 
   // Prevent duplicate: skip BUY if we already hold an open position for this symbol
   if (type === "BUY") {
@@ -274,17 +282,49 @@ async function tryAutoTrade(
       return;
     }
   } else {
-    // SELL — check we actually hold the crypto; determine quote from stablecoin
+    // SELL signals may only close positions opened and tracked by this bot.
+    // Do not sell wallet dust or unrelated manual holdings.
     try {
-      const holding = await getCryptoHolding(creds, symbol);
-      if (holding <= 0) {
-        logger.info({ symbol }, "Auto-sell skipped: no position held");
+      const [openTrade] = await db
+        .select({ id: tradesTable.id, binanceOrderId: tradesTable.binanceOrderId })
+        .from(tradesTable)
+        .where(
+          and(
+            eq(tradesTable.symbol, symbol),
+            eq(tradesTable.side, "BUY"),
+            eq(tradesTable.status, "FILLED"),
+          ),
+        )
+        .limit(1);
+
+      if (!openTrade) {
+        logger.info({ symbol }, "Auto-sell skipped: no bot-managed open position");
         return;
       }
-      logger.info({ symbol, holding }, "Position found — auto-sell triggered");
-      // Detect quote currency so instrument name is correct (BTC_USD vs BTC_USDT)
-      const bal = await getStablecoinBalance(creds);
-      if (bal) quoteCurrency = bal.currency;
+
+      const quoteMatch = openTrade.binanceOrderId?.match(/quote:(USD|USDT|USDC)/);
+      quoteCurrency = (quoteMatch?.[1] as StablecoinType | undefined) ?? "USDT";
+      const instrument = toCdcInstrument(symbol, quoteCurrency === "USDC" ? "USDT" : quoteCurrency);
+      if (!(await isCdcInstrumentSupported(instrument))) {
+        logger.warn({ symbol, instrument, openTradeId: openTrade.id }, "Auto-sell skipped: unsupported Crypto.com Exchange instrument");
+        return;
+      }
+
+      const holding = await getCryptoHolding(creds, symbol);
+      if (holding <= 0) {
+        logger.info({ symbol, openTradeId: openTrade.id }, "Auto-sell skipped: bot position exists but no exchange holding found");
+        return;
+      }
+
+      const executableQty = getExecutableCdcQuantity(instrument, holding);
+      if (executableQty <= 0) {
+        logger.info(
+          { symbol, instrument, holding, openTradeId: openTrade.id },
+          "Auto-sell skipped: holding is below exchange quantity precision",
+        );
+        return;
+      }
+      logger.info({ symbol, holding, executableQty, openTradeId: openTrade.id }, "Bot-managed position found — auto-sell triggered");
     } catch (err) {
       logger.warn({ symbol, err: (err as Error).message }, "Holding check failed, skipping SELL");
       return;
