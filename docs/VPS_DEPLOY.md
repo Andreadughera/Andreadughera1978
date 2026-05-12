@@ -58,10 +58,12 @@ CORS_ORIGINS=
 
 LIVE_TRADING_ENABLED=false
 MAX_TRADE_NOTIONAL_USD=10
-MAX_NEW_TRADES_PER_SESSION=1
-STOP_AFTER_FIRST_FILL=true
-MAX_OPEN_POSITIONS=2
-MAX_TOTAL_EXPOSURE_USD=20
+MAX_NEW_TRADES_PER_SESSION=0
+STOP_AFTER_FIRST_FILL=false
+MAX_OPEN_POSITIONS=4
+MAX_TOTAL_EXPOSURE_USD=40
+MAX_NEW_TRADES_PER_HOUR=4
+MAX_NEW_TRADES_PER_DAY=24
 ENABLE_SIGNAL_AUTO_SELL=false
 ENABLE_LISTING_AUTO_TRADE=false
 ALLOW_MOCK_MARKET_DATA=false
@@ -122,10 +124,12 @@ With `LIVE_TRADING_ENABLED=false`:
 For controlled live tests, keep these capital-preservation brakes enabled:
 
 - `MAX_TRADE_NOTIONAL_USD=10` caps each order.
-- `MAX_NEW_TRADES_PER_SESSION=1` allows only one new filled BUY per app session.
-- `STOP_AFTER_FIRST_FILL=true` stops queued BUY attempts after the first filled BUY.
-- `MAX_OPEN_POSITIONS=2` blocks new BUYs once two positions are open.
-- `MAX_TOTAL_EXPOSURE_USD=20` blocks new BUYs above total open exposure.
+- `MAX_NEW_TRADES_PER_SESSION=0` disables one-off session tests and allows continuous controlled looping.
+- `STOP_AFTER_FIRST_FILL=false` lets the bot continue after a position closes.
+- `MAX_OPEN_POSITIONS=4` blocks new BUYs once four positions are open.
+- `MAX_TOTAL_EXPOSURE_USD=40` blocks new BUYs above total open exposure.
+- `MAX_NEW_TRADES_PER_HOUR=4` caps churn in fast markets.
+- `MAX_NEW_TRADES_PER_DAY=24` caps daily activity.
 - `ENABLE_SIGNAL_AUTO_SELL=false` keeps exits under the TP/SL position monitor instead of raw SELL signals.
 
 Only after this, edit `.env`:

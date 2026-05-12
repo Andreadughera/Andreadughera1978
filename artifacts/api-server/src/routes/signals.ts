@@ -14,7 +14,7 @@ import { getLastRegime } from "../lib/marketRegime";
 
 const router = Router();
 const DEFAULT_MAX_TRADE_NOTIONAL_USD = 10;
-const DEFAULT_MAX_NEW_TRADES_PER_SESSION = 1;
+const DEFAULT_MAX_NEW_TRADES_PER_SESSION = 0;
 
 // ─── Global trade semaphore ────────────────────────────────────────────────
 // Prevents race condition where 20 parallel signals all pass the balance check
@@ -59,9 +59,11 @@ function stopAfterFirstFill(): boolean {
 }
 
 function sessionTradeLimitReached(): boolean {
+  const sessionLimit = getMaxNewTradesPerSession();
+  if (sessionLimit <= 0) return false;
   const maxNewTrades = stopAfterFirstFill()
-    ? Math.min(1, getMaxNewTradesPerSession())
-    : getMaxNewTradesPerSession();
+    ? Math.min(1, sessionLimit)
+    : sessionLimit;
   return _sessionFilledBuyCount >= maxNewTrades;
 }
 

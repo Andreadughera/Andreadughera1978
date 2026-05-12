@@ -1,14 +1,21 @@
 import { db, tradesTable } from "@workspace/db";
-import { eq, and, sql, isNotNull } from "drizzle-orm";
+import { eq, and, sql, isNotNull, inArray } from "drizzle-orm";
 import { logger } from "./logger";
 
 const DAILY_DRAWDOWN_LIMIT = 0.05; // 5% of invested capital
 const DEFAULT_MAX_OPEN_POSITIONS = 2;
 const DEFAULT_MAX_TOTAL_EXPOSURE_USD = 20;
+const DEFAULT_MAX_NEW_TRADES_PER_HOUR = 4;
+const DEFAULT_MAX_NEW_TRADES_PER_DAY = 24;
 
 function readPositiveNumber(key: string, fallback: number): number {
   const raw = Number(process.env[key] ?? fallback);
   return Number.isFinite(raw) && raw > 0 ? raw : fallback;
+}
+
+function readNonNegativeNumber(key: string, fallback: number): number {
+  const raw = Number(process.env[key] ?? fallback);
+  return Number.isFinite(raw) && raw >= 0 ? raw : fallback;
 }
 
 export function getMaxOpenPositions(): number {
@@ -17,6 +24,14 @@ export function getMaxOpenPositions(): number {
 
 export function getMaxTotalExposureUsd(): number {
   return readPositiveNumber("MAX_TOTAL_EXPOSURE_USD", DEFAULT_MAX_TOTAL_EXPOSURE_USD);
+}
+
+export function getMaxNewTradesPerHour(): number {
+  return Math.floor(readNonNegativeNumber("MAX_NEW_TRADES_PER_HOUR", DEFAULT_MAX_NEW_TRADES_PER_HOUR));
+}
+
+export function getMaxNewTradesPerDay(): number {
+  return Math.floor(readNonNegativeNumber("MAX_NEW_TRADES_PER_DAY", DEFAULT_MAX_NEW_TRADES_PER_DAY));
 }
 
 /**
@@ -147,6 +162,64 @@ export async function checkTotalExposure(
   return { allowed: true, totalInvested, maxExposure };
 }
 
+export async function checkTradeVelocity(): Promise<{
+  allowed: boolean;
+  reason?: string;
+  tradesLastHour: number;
+  tradesToday: number;
+  maxPerHour: number;
+  maxPerDay: number;
+}> {
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+  const startOfToday = new Date();
+  startOfToday.setUTCHours(0, 0, 0, 0);
+
+  const countRows = async (since: Date) => {
+    const rows = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(tradesTable)
+      .where(
+        and(
+          eq(tradesTable.side, "BUY"),
+          inArray(tradesTable.status, ["PENDING", "FILLED", "CLOSED"]),
+          sql`${tradesTable.createdAt} >= ${since}`,
+        ),
+      );
+    return rows[0]?.count ?? 0;
+  };
+
+  const [tradesLastHour, tradesToday] = await Promise.all([
+    countRows(oneHourAgo),
+    countRows(startOfToday),
+  ]);
+  const maxPerHour = getMaxNewTradesPerHour();
+  const maxPerDay = getMaxNewTradesPerDay();
+
+  if (maxPerHour > 0 && tradesLastHour >= maxPerHour) {
+    return {
+      allowed: false,
+      reason: `Hourly trade limit reached (${tradesLastHour}/${maxPerHour})`,
+      tradesLastHour,
+      tradesToday,
+      maxPerHour,
+      maxPerDay,
+    };
+  }
+
+  if (maxPerDay > 0 && tradesToday >= maxPerDay) {
+    return {
+      allowed: false,
+      reason: `Daily trade limit reached (${tradesToday}/${maxPerDay})`,
+      tradesLastHour,
+      tradesToday,
+      maxPerHour,
+      maxPerDay,
+    };
+  }
+
+  return { allowed: true, tradesLastHour, tradesToday, maxPerHour, maxPerDay };
+}
+
 /**
  * Master risk gate — combines all checks.
  * Returns {allowed, reason} for whether a new BUY should proceed.
@@ -155,10 +228,11 @@ export async function canOpenNewPosition(
   symbol: string,
   nextNotionalUsd = 0,
 ): Promise<{ allowed: boolean; reason?: string }> {
-  const [drawdown, concentration, exposure] = await Promise.all([
+  const [drawdown, concentration, exposure, velocity] = await Promise.all([
     isDailyDrawdownBreached(),
     checkPositionConcentration(symbol),
     checkTotalExposure(nextNotionalUsd),
+    checkTradeVelocity(),
   ]);
 
   if (drawdown.breached) {
@@ -174,6 +248,10 @@ export async function canOpenNewPosition(
 
   if (!exposure.allowed) {
     return { allowed: false, reason: exposure.reason };
+  }
+
+  if (!velocity.allowed) {
+    return { allowed: false, reason: velocity.reason };
   }
 
   return { allowed: true };
