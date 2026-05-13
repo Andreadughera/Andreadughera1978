@@ -23,6 +23,7 @@ Nel repository e ora presente una base v5.2 di test:
 - `apps-script/Setup_v5_2.gs`
 - `apps-script/MeteoCache_v5_2.gs`
 - `apps-script/MeteoProvider_v5_2.gs`
+- `apps-script/DollarSpot_v5_2_DropIn_Replacements.gs`
 - `web/superintendent_v5_2_integration.js`
 
 Questi file coprono il livello di sicurezza/sincronizzazione:
@@ -36,6 +37,7 @@ Questi file coprono il livello di sicurezza/sincronizzazione:
 - cache meteo multi-campo basata su Google Sheets.
 - provider meteo live/cache/fallback per il modello rischio.
 - setup guidato dell'ambiente Google Sheets/Apps Script TEST.
+- sostituzioni drop-in per le funzioni critiche del sorgente v5.1.
 
 Non sono ancora presenti i sorgenti completi della versione oggi in uso:
 
@@ -51,6 +53,7 @@ apps-script/
   DollarSpot_Sentinel_v5_2_TEST.gs
   MeteoCache_v5_2.gs
   MeteoProvider_v5_2.gs
+  DollarSpot_v5_2_DropIn_Replacements.gs
 web/
   superintendent_v9.html
   superintendent_v5_2_TEST.html
