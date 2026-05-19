@@ -14,6 +14,7 @@ Documentazione operativa per portare DollarSpot Sentinel dalla versione attualme
 - [MeteoCache](docs/dollarspot/v5.2-meteo-cache.md)
 - [Integrazione MeteoProvider](docs/dollarspot/v5.2-meteo-provider-integration.md)
 - [Setup ambiente test](docs/dollarspot/v5.2-test-environment-setup.md)
+- [Validation log](docs/dollarspot/v5.2-test-validation-log.md)
 
 ### Stato repository
 

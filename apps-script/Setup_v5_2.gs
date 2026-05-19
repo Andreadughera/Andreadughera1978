@@ -16,18 +16,18 @@ var SETUP_V52_CONFIG = {
 
 var SETUP_V52_SHEETS = {
   Campi: [
-    "nomeCampo",
-    "latitudine",
-    "longitudine",
-    "emailSuper",
-    "profilo",
-    "feltro_1_9",
-    "feltro_10_18",
-    "feltro_19_27",
-    "feltro_28_36",
-    "feltro_pratica",
-    "feltro_putting",
-    "data_feltro",
+    "Nome Campo",
+    "Latitudine",
+    "Longitudine",
+    "Email Super",
+    "Profilo",
+    "Feltro 1-9",
+    "Feltro 10-18",
+    "Feltro 19-27",
+    "Feltro 28-36",
+    "Feltro Pratica",
+    "Feltro Putting",
+    "Data Feltro",
     "inoculo",
     "composizione",
     "",
@@ -140,7 +140,7 @@ function validateDollarSpotV52Environment() {
     var required = SETUP_V52_SHEETS[sheetName].filter(function(header) { return header !== ""; });
     var headers = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), required.length)).getValues()[0];
     required.forEach(function(header) {
-      if (headers.indexOf(header) === -1) {
+      if (!hasSetupHeader_(headers, header)) {
         issues.push("Foglio " + sheetName + ": manca header '" + header + "'");
       }
     });
@@ -150,16 +150,16 @@ function validateDollarSpotV52Environment() {
   if (campi) {
     var data = campi.getDataRange().getValues();
     var header = data[0] || [];
-    var idxNome = header.indexOf("nomeCampo");
-    var idxLat = header.indexOf("latitudine");
-    var idxLon = header.indexOf("longitudine");
-    var idxToken = header.indexOf("tokenCampo");
-    var idxAttivo = header.indexOf("attivo");
+    var idxNome = findSetupHeaderIndex_(header, ["nomeCampo", "Nome Campo", "nome campo"]);
+    var idxLat = findSetupHeaderIndex_(header, ["latitudine", "Latitudine"]);
+    var idxLon = findSetupHeaderIndex_(header, ["longitudine", "Longitudine"]);
+    var idxToken = findSetupHeaderIndex_(header, ["tokenCampo", "Token Campo", "token campo"]);
+    var idxAttivo = findSetupHeaderIndex_(header, ["attivo", "Attivo"]);
 
     for (var i = 1; i < data.length; i++) {
       var rowNumber = i + 1;
       var row = data[i];
-      if (!row[idxNome]) continue;
+      if (idxNome < 0 || !row[idxNome]) continue;
       if (idxLat >= 0 && !isFinite(Number(row[idxLat]))) issues.push("Campi riga " + rowNumber + ": latitudine non valida");
       if (idxLon >= 0 && !isFinite(Number(row[idxLon]))) issues.push("Campi riga " + rowNumber + ": longitudine non valida");
       if (idxToken >= 0 && !row[idxToken]) issues.push("Campi riga " + rowNumber + ": tokenCampo mancante");
@@ -196,7 +196,7 @@ function ensureSetupSheet_(ss, sheetName, headers) {
     headers.forEach(function(header) {
       if (!header) return;
       var existing = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0];
-      if (existing.indexOf(header) === -1) {
+      if (!hasSetupHeader_(existing, header)) {
         sheet.getRange(1, sheet.getLastColumn() + 1).setValue(header);
       }
     });
@@ -223,11 +223,11 @@ function ensureCampiSecurityColumnsV52_() {
     }
   });
 
-  var idxNome = headers.indexOf("nomeCampo");
-  var idxCampoId = headers.indexOf("campoId");
-  var idxToken = headers.indexOf("tokenCampo");
-  var idxAttivo = headers.indexOf("attivo");
-  var idxRotazione = headers.indexOf("ultimaRotazioneToken");
+  var idxNome = findSetupHeaderIndex_(headers, ["nomeCampo", "Nome Campo", "nome campo"]);
+  var idxCampoId = findSetupHeaderIndex_(headers, ["campoId", "CampoId", "Campo ID", "campo id"]);
+  var idxToken = findSetupHeaderIndex_(headers, ["tokenCampo", "Token Campo", "token campo"]);
+  var idxAttivo = findSetupHeaderIndex_(headers, ["attivo", "Attivo"]);
+  var idxRotazione = findSetupHeaderIndex_(headers, ["ultimaRotazioneToken", "Ultima Rotazione Token", "ultima rotazione token"]);
   var values = sheet.getDataRange().getValues();
 
   for (var i = 1; i < values.length; i++) {
@@ -255,4 +255,29 @@ function makeSetupCampoId_(nomeCampo) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .substring(0, 60);
+}
+
+function hasSetupHeader_(headers, wanted) {
+  var wantedNorm = normalizeSetupHeader_(wanted);
+  return headers.some(function(header) {
+    return normalizeSetupHeader_(header) === wantedNorm;
+  });
+}
+
+function findSetupHeaderIndex_(headers, aliases) {
+  var normalizedAliases = aliases.map(normalizeSetupHeader_);
+  for (var i = 0; i < headers.length; i++) {
+    if (normalizedAliases.indexOf(normalizeSetupHeader_(headers[i])) !== -1) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+function normalizeSetupHeader_(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[._-]+/g, " ")
+    .replace(/\s+/g, " ");
 }
